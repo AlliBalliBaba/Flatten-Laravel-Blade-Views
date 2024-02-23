@@ -7,17 +7,20 @@ use Illuminate\Support\Facades\Blade;
 
 class FlattenBladeFiles extends ViewCacheCommand
 {
+    const DEFAULT_ROUNDS = 3;
 
     protected $signature = 'view:flatten {--r|rounds=}';
 
     protected $description = 'Compile blades into 1 flat file';
+
+    private static int $scope = 0;
 
     public function handle()
     {
         echo "caching all views\n";
         $this->callSilent('view:cache');
 
-        $rounds = (int)($this->option('rounds') ?? 4);
+        $rounds = (int)($this->option('rounds') ?? self::DEFAULT_ROUNDS);
         $this->overrideIncludeDirective();
 
         for ($i = 1; $i <= $rounds; $i++) {
@@ -53,15 +56,16 @@ class FlattenBladeFiles extends ViewCacheCommand
     {
         Blade::directive('include', function ($view) {
             $split = explode(",", $view, 2);
-            $vars = trim($split[1] ?? null);
-            $vars = $vars ? "<?php extract($vars) ?>" : "";
+            $vars = trim($split[1] ?? '');
             $path = $this->viewToPath($split[0]);
             $renderFile = Blade::getCompiledPath($path);
             $content = @file_get_contents($renderFile);
             if (!$content) {
-                throw new \Exception("View was not found: $renderFile");
+                $this->components->warn("Cached view was not found: $view");
+                return "";
             }
-            return "$vars $content";
+            [$declaration, $unset] = $this->scopeVariables($vars);
+            return "$declaration $content $unset";
         });
     }
 
@@ -72,7 +76,26 @@ class FlattenBladeFiles extends ViewCacheCommand
     {
         $path = str_replace(".", "/", $view);
         $path = str_replace(['"', "'"], "", $path);
+        $path = trim($path);
         return resource_path("views/$path.blade.php");
+    }
+
+    /**
+     * Here we are temporarily storing all variables that would be overwritten in a $__scop array
+     * Afterward we are unsetting all variables passed to the view
+     */
+    private function scopeVariables(string $vars): array
+    {
+        $vars = trim($vars);
+        if (!$vars) {
+            return ['', ''];
+        }
+        self::$scope++;
+        $scopeName = '$__scop' . self::$scope;
+        $declaration = '<?php foreach (' . $vars . ' as $k => $v){ ' . $scopeName . '[$k] = $$k ?? null; $$k = $v; } ?>';
+        $unset = '<?php foreach (' . $scopeName . ' as $var => $orig){ if($orig !== null){$$var=$orig;}else{unset($$var);} };unset(' . $scopeName . '); ?>';
+
+        return [$declaration, $unset];
     }
 
 }
