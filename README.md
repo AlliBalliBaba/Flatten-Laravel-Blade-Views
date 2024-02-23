@@ -45,6 +45,6 @@ but still significant for large tables with 1000+ ``@includes``.
 
 #### What's the catch?
 When running ``php artisan view:flatten`` your templates won't necessarily update 
-automatically on change, you'll have to run ``php artisan view:cache`` again.
-Also in this current iteration, variables that are passed to the view 
-<strong>are not unset afterwards</strong>, leading to a potentially different behaviour.
+automatically on change, you'll have to run ``php artisan view:cache`` or ``php artisan view:flatten`` again.
+Also in this current iteration, variables that are ``null`` and are passed to the view 
+are unset afterwards, potentially leading to a different behaviour in rare cases.
