@@ -37,14 +37,17 @@ As an example we are including this simple component <strong>100.000</strong> ti
     <img src="https://somewebsite/{{$countryCode}}.png">
 @endif
 ```
-With <strong>100.000</strong> includes the render time is around <strong>1300ms</strong>, with a flattened
-template render time is around <strong>50ms</strong>
+With <strong>100.000</strong> includes the render time on a local machine is around <strong>1300ms</strong>, with a flattened
+template render time is around <strong>50ms</strong>. These numbers show us that the overhead of an ``@include`` is around <strong>25</strong> times more expensive than the actual rendering of this simple component.
 
 In real live examples with big tables performance gain is of course considerably smaller, 
 but still significant for large tables with 1000+ ``@includes``.
 
 #### What's the catch?
 When running ``php artisan view:flatten`` your templates won't necessarily update 
-automatically on change, you'll have to run ``php artisan view:cache`` or ``php artisan view:flatten`` again.
-Also in this current iteration, variables that are ``null`` and are passed to the view 
-are unset afterwards, potentially leading to a different behaviour in rare cases.
+automatically on change, you'll have to run ``php artisan view:cache`` or ``php artisan view:flatten`` again. The command is only suitable for a production environment where you don't plan to change views.
+Also in this current iteration the command will break for views that are not in the ``resources/views`` folder.
+Recursive views that include themselves potentially lead to a big cached file if you pass a lot of ``--rounds`` to the command.
+
+#### What's next
+It would be interesting to achieve something similar for components or test the behaviour with component libraries.
