@@ -2,9 +2,13 @@
 
 namespace App\Console\Commands;
 
+use Illuminate\Contracts\View\Factory as ViewFactory;
 use Illuminate\Foundation\Console\ViewCacheCommand;
 use Illuminate\Support\Facades\Blade;
 
+/**
+ * TOdo: clean up
+ */
 class FlattenBladeFiles extends ViewCacheCommand
 {
     const DEFAULT_ROUNDS = 3;
@@ -14,22 +18,23 @@ class FlattenBladeFiles extends ViewCacheCommand
     protected $description = 'Compile blades into 1 flat file';
 
     private static int $scope = 0;
+    private $recusions = [];
 
     public function handle()
     {
-        echo "caching all views\n";
+        $this->comment("caching all views");
         $this->callSilent('view:cache');
 
         $rounds = (int)($this->option('rounds') ?? self::DEFAULT_ROUNDS);
         $this->overrideIncludeDirective();
 
         for ($i = 1; $i <= $rounds; $i++) {
-            echo "flattening all views $i times\n";
+            $this->comment("flattening all views $i times");
             $this->compileAllViews();
         }
 
         $this->newLine();
-        $this->components->info('Blade templates flattened successfully.');
+        $this->info('Blade templates flattened successfully.');
     }
 
     /**
@@ -54,48 +59,81 @@ class FlattenBladeFiles extends ViewCacheCommand
      */
     private function overrideIncludeDirective(): void
     {
-        Blade::directive('include', function ($view) {
-            $split = explode(",", $view, 2);
-            $vars = trim($split[1] ?? '');
-            $path = $this->viewToPath($split[0]);
+        $viewFactory = app()->make(ViewFactory::class);
+        Blade::directive('include', function ($expression) use ($viewFactory) {
+            $split = explode(",", $expression, 2);
+
+            $path = $this->viewToPath($viewFactory, $split[0]);
+
             $renderFile = Blade::getCompiledPath($path);
             $content = @file_get_contents($renderFile);
             if (!$content) {
-                $this->components->warn("Cached view was not found: $view");
+                $this->components->warn("Cached view was not found: $expression");
                 return "";
             }
-            [$declaration, $unset] = $this->scopeVariables($vars);
-            return "$declaration $content $unset";
+            $viewNameWithQuotations = $split[0];
+            if (str_contains($content, $split[0])) {
+                if (empty($this->recusions[$viewNameWithQuotations])) {
+                    $this->warn("detected recursion: $viewNameWithQuotations");
+                    $this->recusions[$viewNameWithQuotations] = true;
+                }
+                return $this->compileRegularInclude($expression);
+            }
+            $vars = trim($split[1] ?? '');
+            $declaredVars = $this->getAllVariablesDeclaredInsideTheTemplate($content);
+            [$startScope, $endScope] = $this->scopeVariables($vars, $declaredVars);
+            return "$startScope $content $endScope";
         });
     }
 
-    /**
-     * Laravel probably has something built in that dos this and I just haven't found it yet:
-     */
-    private function viewToPath($view)
+    private function viewToPath(ViewFactory $factory, $viewName)
     {
-        $path = str_replace(".", "/", $view);
-        $path = str_replace(['"', "'"], "", $path);
-        $path = trim($path);
-        return resource_path("views/$path.blade.php");
+        $viewName = trim(str_replace(['"', "'"], "", $viewName));
+        return $factory->getFinder()->find($viewName);
     }
 
     /**
      * Here we are temporarily storing all variables that would be overwritten in a $__scop array
      * Afterward we are unsetting all variables passed to the view
      */
-    private function scopeVariables(string $vars): array
+    private function scopeVariables(string $passedVars, string $declaredVars): array
     {
-        $vars = trim($vars);
-        if (!$vars) {
-            return ['', ''];
-        }
         self::$scope++;
         $scopeName = '$__scop' . self::$scope;
-        $declaration = '<?php foreach (' . $vars . ' as $k => $v){ ' . $scopeName . '[$k] = $$k ?? null; $$k = $v; } ?>';
-        $unset = '<?php foreach (' . $scopeName . ' as $var => $orig){ if($orig !== null){$$var=$orig;}else{unset($$var);} };unset(' . $scopeName . '); ?>';
 
-        return [$declaration, $unset];
+        if ($passedVars) {
+            $startScope = '<?php foreach (' . $passedVars . ' as $k => $v){ ' . $scopeName . '[$k] = $$k ?? null; $$k = $v; } ?>';
+            $endScope = '<?php foreach (' . $scopeName . ' as $var => $orig){ if($orig !== null){$$var=$orig;}else{unset($$var);} };unset(' . $scopeName . '); ?>';
+        } else {
+            $startScope = '';
+            $endScope = '';
+        }
+        if ($declaredVars) {
+            $startScope .= '<?php foreach ([' . $declaredVars . '] as $v){ ' . $scopeName . '[$v] = $$v ?? null; } ?>';
+        }
+        return [$startScope, $endScope];
+    }
+
+    /**
+     * here we are using a regex to get all variables that are declared inside the template
+     * aka $variable = x
+     */
+    private function getAllVariablesDeclaredInsideTheTemplate(string $viewContent): string
+    {
+        preg_match_all('/\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*=/m', $viewContent, $matches);
+        $variableOccurrences = array_unique($matches[1]);
+        $declaredVars = '';
+        foreach ($variableOccurrences as $variableName) {
+            $declaredVars .= "'$variableName',";
+        }
+        return rtrim($declaredVars, ',');
+    }
+
+    private function compileRegularInclude($expression)
+    {
+        Blade::stripParentheses($expression);
+
+        return "<?php echo \$__env->make({$expression}, \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?>";
     }
 
 }
