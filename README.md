@@ -46,8 +46,7 @@ but still significant for large tables with 1000+ ``@includes``.
 #### What's the catch?
 When running ``php artisan view:flatten`` your templates won't necessarily update 
 automatically on change, you'll have to run ``php artisan view:cache`` or ``php artisan view:flatten`` again. The command is only suitable for a production environment where you don't plan to change views.
-Also in this current iteration the command will break for views that are not in the ``resources/views`` folder.
-Recursive views that include themselves potentially lead to a big cached file if you pass a lot of ``--rounds`` to the command.
+Variables that are declared in a view are generally unset afterwards. This is detected via a regex and might not include all forms of variable declaration, leading to a potentially different behaviour if you tend to write a lot of plain PHP code in your templates.
 
 #### What's next
 It would be interesting to achieve something similar for components or test the behaviour with component libraries.
