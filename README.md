@@ -38,7 +38,7 @@ As an example we are including this simple component <strong>100.000</strong> ti
 @endif
 ```
 With <strong>100.000</strong> includes the render time on a local machine is around <strong>1300ms</strong>, with a flattened
-template render time is around <strong>50ms</strong>. These numbers show us that the overhead of an ``@include`` is around <strong>25</strong> times more expensive than the actual rendering of this simple component.
+template render time is around <strong>40ms</strong>. These numbers show us that the overhead of an ``@include`` is around <strong>30</strong> times more expensive than the actual rendering of this simple component inside a for loop.
 
 In real live examples with big tables performance gain is of course considerably smaller, 
 but still significant for large tables with 1000+ ``@includes``.
