@@ -50,3 +50,4 @@ Variables that are declared in a view are generally unset afterwards. This is de
 
 #### What's next
 It would be interesting to achieve something similar for components or test the behaviour with component libraries.
+It might be possible to similarily render an anonymous ``@component`` inside an anonymous funtion.
