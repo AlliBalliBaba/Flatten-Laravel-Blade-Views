@@ -40,8 +40,7 @@ As an example we are including this simple component <strong>100.000</strong> ti
 With <strong>100.000</strong> includes the render time on a local machine is around <strong>1300ms</strong>, with a flattened
 template render time is around <strong>40ms</strong>. These numbers show us that the overhead of an ``@include`` is around <strong>30</strong> times more expensive than the actual rendering of this simple component inside a for loop.
 
-In real live examples with big tables performance gain is of course considerably smaller, 
-but still significant for large tables with 1000+ ``@includes``.
+In real live examples with big tables performance gain is of course considerably smaller. An example: A hot endpoint from a project I'm working on was able to handle twice as many requests when views were flattened (a big view with around 400 nested @includes).
 
 #### What's the catch?
 When running ``php artisan view:flatten`` your templates won't necessarily update 
